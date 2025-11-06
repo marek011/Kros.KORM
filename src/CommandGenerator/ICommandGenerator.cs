@@ -28,6 +28,14 @@ namespace Kros.KORM.CommandGenerator
         DbCommand GetUpdateCommand();
 
         /// <summary>
+        /// Gets the automatically generated DbCommand object required to perform updates on the database with an additional WHERE condition.
+        /// </summary>
+        /// <param name="whereExpression">Additional WHERE condition to be combined with the primary key condition.</param>
+        /// <exception cref="Exceptions.MissingPrimaryKeyException">GetUpdateCommand doesn't supported when entity doesn't have primary key.</exception>
+        /// <returns>Update command with custom condition.</returns>
+        DbCommand GetUpdateCommand(WhereExpression whereExpression);
+
+        /// <summary>
         /// Gets the upsert command with custom condition columns.
         /// </summary>
         /// <param name="conditionColumnNames">Collection of column names to match for record update.</param>

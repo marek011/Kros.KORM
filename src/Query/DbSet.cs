@@ -35,6 +35,7 @@ namespace Kros.KORM.Query
         private readonly HashSet<T> _upsertedItems = new HashSet<T>();
         private readonly HashSet<object> _deletedItemsIds = new HashSet<object>();
         private readonly List<WhereExpression> _deleteExpressions = new List<WhereExpression>();
+        private readonly Dictionary<T, WhereExpression> _editedItemsWithConditions = [];
         private readonly TableInfo _tableInfo;
         private readonly Lazy<Type> _primaryKeyPropertyType;
         private IEnumerable<string> _upsertConditionColumnNames;
@@ -209,6 +210,37 @@ namespace Kros.KORM.Query
             }
         }
 
+        /// <inheritdoc />
+        public void Edit(T entity, Expression<Func<T, bool>> condition)
+        {
+            Check.NotNull(entity, nameof(entity));
+            Check.NotNull(condition, nameof(condition));
+
+            CheckItemInCollection(entity, _addedItems, Resources.ExistingItemCannotBeEdited, nameof(AddedItems));
+            CheckItemInCollection(entity, _deletedItems, Resources.ExistingItemCannotBeEdited, nameof(DeletedItems));
+            CheckItemInCollection(entity, _upsertedItems, Resources.ExistingItemCannotBeEdited, nameof(UpsertedItems));
+
+            ISqlExpressionVisitor generator = _provider.GetExpressionVisitor();
+            WhereExpression where = generator.GenerateWhereCondition(condition.Body);
+
+            _editedItemsWithConditions[entity] = where;
+        }
+
+        /// <inheritdoc />
+        public void Edit(T entity, RawSqlString condition, params object[] parameters)
+        {
+            Check.NotNull(entity, nameof(entity));
+            Check.NotNull(condition, nameof(condition));
+
+            CheckItemInCollection(entity, _addedItems, Resources.ExistingItemCannotBeEdited, nameof(AddedItems));
+            CheckItemInCollection(entity, _deletedItems, Resources.ExistingItemCannotBeEdited, nameof(DeletedItems));
+            CheckItemInCollection(entity, _upsertedItems, Resources.ExistingItemCannotBeEdited, nameof(UpsertedItems));
+
+            var where = new WhereExpression(condition, parameters);
+
+            _editedItemsWithConditions[entity] = where;
+        }
+
         /// <summary>
         /// Marks the items as Deleted such that it will be deleted from the database when CommitChanges is called.
         /// </summary>
@@ -232,6 +264,7 @@ namespace Kros.KORM.Query
             _deletedItems.Clear();
             _deletedItemsIds.Clear();
             _deleteExpressions.Clear();
+            _editedItemsWithConditions.Clear();
         }
 
         /// <inheritdoc />
@@ -359,6 +392,7 @@ namespace Kros.KORM.Query
             {
                 await CommitChangesAddedItemsAsync(_addedItems, useAsync, ignoreValueGenerators, token);
                 await CommitChangesEditedItemsAsync(_editedItems, useAsync, ignoreValueGenerators, token);
+                await CommitChangesEditedItemsWithConditionsAsync(_editedItemsWithConditions, useAsync, ignoreValueGenerators, token);
                 await CommitChangesUpsertedItemsAsync(_upsertedItems, useAsync, token);
                 await CommitChangesDeletedItemsAsync(_deletedItems, useAsync, token);
                 await CommitChangesDeletedItemsByIdAsync(_deletedItemsIds, useAsync, token);
@@ -531,6 +565,26 @@ namespace Kros.KORM.Query
                         _commandGenerator.FillCommand(command, item, ValueGenerated.OnUpdate, ignoreValueGenerators);
                         await ExecuteNonQueryAsync(command, useAsync, cancellationToken);
                     }
+                }
+            }
+        }
+
+        private async Task CommitChangesEditedItemsWithConditionsAsync(
+            Dictionary<T, WhereExpression> itemsWithConditions,
+            bool useAsync,
+            bool ignoreValueGenerators,
+            CancellationToken cancellationToken = default)
+        {
+            if (itemsWithConditions.Count > 0)
+            {
+                foreach (KeyValuePair<T, WhereExpression> kvp in itemsWithConditions)
+                {
+                    T item = kvp.Key;
+                    WhereExpression condition = kvp.Value;
+
+                    using DbCommand command = _commandGenerator.GetUpdateCommand(condition);
+                    _commandGenerator.FillCommand(command, item, ValueGenerated.OnUpdate, ignoreValueGenerators);
+                    await ExecuteNonQueryAsync(command, useAsync, cancellationToken);
                 }
             }
         }

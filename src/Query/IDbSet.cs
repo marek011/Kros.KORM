@@ -42,6 +42,29 @@ namespace Kros.KORM.Query
         void Edit(IEnumerable<T> entities);
 
         /// <summary>
+        /// Marks the item as Edited with an additional condition filter.
+        /// The item will be updated in the database when CommitChanges is called only if it matches the condition.
+        /// </summary>
+        /// <param name="entity">The item to edit.</param>
+        /// <param name="condition">Update condition that must be satisfied.</param>
+        /// <remarks>
+        /// The UPDATE statement will use both the primary key and the specified condition in the WHERE clause.
+        /// </remarks>
+        void Edit(T entity, Expression<Func<T, bool>> condition);
+
+        /// <summary>
+        /// Marks the item as Edited with an additional condition filter.
+        /// The item will be updated in the database when CommitChanges is called only if it matches the condition.
+        /// </summary>
+        /// <param name="entity">The item to edit.</param>
+        /// <param name="condition">Update condition that must be satisfied.</param>
+        /// <param name="parameters">Condition parameters.</param>
+        /// <remarks>
+        /// The UPDATE statement will use both the primary key and the specified condition in the WHERE clause.
+        /// </remarks>
+        void Edit(T entity, RawSqlString condition, params object[] parameters);
+
+        /// <summary>
         /// Adds the item to the context underlying the set in the Upserted state such that it will be updated or
         /// inserted in the database when CommitChanges is called.
         /// </summary>

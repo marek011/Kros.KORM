@@ -181,6 +181,46 @@ namespace Kros.KORM
                 columns: columns);
 
         /// <summary>
+        /// Edits the <paramref name="entity"/> in the database with an additional condition filter.
+        /// The entity will be updated only if it matches both the primary key and the specified condition.
+        /// </summary>
+        /// <typeparam name="TEntity">Entity type.</typeparam>
+        /// <param name="database"><see cref="IDatabase"/> instance.</param>
+        /// <param name="entity">The entity to edit.</param>
+        /// <param name="condition">Update condition that must be satisfied.</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+        public static async Task EditAsync<TEntity>(
+            this IDatabase database,
+            TEntity entity,
+            Expression<Func<TEntity, bool>> condition,
+            CancellationToken cancellationToken = default) where TEntity : class
+            => await CommitChangesAsync(
+                database,
+                (IDbSet<TEntity> dbSet) => dbSet.Edit(entity, condition),
+                cancellationToken: cancellationToken);
+
+        /// <summary>
+        /// Edits the <paramref name="entity"/> in the database with an additional condition filter.
+        /// The entity will be updated only if it matches both the primary key and the specified condition.
+        /// </summary>
+        /// <typeparam name="TEntity">Entity type.</typeparam>
+        /// <param name="database"><see cref="IDatabase"/> instance.</param>
+        /// <param name="entity">The entity to edit.</param>
+        /// <param name="condition">Update condition that must be satisfied.</param>
+        /// <param name="parameters">Condition parameters.</param>
+        /// <param name="cancellationToken">The token to monitor for cancellation requests.</param>
+        public static async Task EditAsync<TEntity>(
+            this IDatabase database,
+            TEntity entity,
+            RawSqlString condition,
+            CancellationToken cancellationToken = default,
+            params object[] parameters) where TEntity : class
+            => await CommitChangesAsync(
+                database,
+                (IDbSet<TEntity> dbSet) => dbSet.Edit(entity, condition, parameters),
+                cancellationToken: cancellationToken);
+
+        /// <summary>
         /// Inserts or updates <paramref name="entity"/> in the database.
         /// </summary>
         /// <typeparam name="TEntity">Entity type.</typeparam>

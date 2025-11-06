@@ -124,6 +124,37 @@ SELECT * FROM @OutputTable;";
         }
 
         /// <summary>
+        /// Gets the automatically generated DbCommand object required to perform updates on the database with an additional WHERE condition.
+        /// </summary>
+        /// <param name="whereExpression">Additional WHERE condition to be combined with the primary key condition.</param>
+        /// <exception cref="Exceptions.MissingPrimaryKeyException">Table does not have primary key.</exception>
+        /// <returns>Update command with custom condition.</returns>
+        public DbCommand GetUpdateCommand(WhereExpression whereExpression)
+        {
+            Check.NotNull(whereExpression, nameof(whereExpression));
+            ThrowHelper.CheckAndThrowMethodNotSupportedWhenNoPrimaryKey(_tableInfo);
+
+            IEnumerable<ColumnInfo> columns = GetQueryColumns(ValueGenerated.OnUpdate);
+            DbCommand cmd = _provider.GetCommandForCurrentTransaction();
+            AddParametersToCommand(cmd, columns.Where(x => !x.IsPrimaryKey));
+            AddParametersToCommand(cmd, columns.Where(x => x.IsPrimaryKey));
+            
+            // Add parameters from where expression
+            int paramIndex = 1;
+            foreach (object param in whereExpression.Parameters)
+            {
+                DbParameter dbParam = cmd.CreateParameter();
+                dbParam.ParameterName = $"@__{paramIndex}";
+                dbParam.Value = param ?? DBNull.Value;
+                cmd.Parameters.Add(dbParam);
+                paramIndex++;
+            }
+
+            cmd.CommandText = GetUpdateCommandText(columns, whereExpression);
+            return cmd;
+        }
+
+        /// <summary>
         /// Gets the upsert command.
         /// </summary>
         /// <returns>
@@ -418,6 +449,49 @@ SELECT * FROM @OutputTable;";
                 }
                 paramWherePart.AppendFormat("([{0}] = @{0})", col.Name);
             }
+
+            return string.Format(UPDATE_QUERY_BASE, _tableInfo.Name, paramSetPart.ToString(), paramWherePart.ToString());
+        }
+
+        private string GetUpdateCommandText(IEnumerable<ColumnInfo> columns, WhereExpression additionalCondition)
+        {
+            var paramSetPart = new StringBuilder();
+
+            foreach (ColumnInfo column in columns.Where(p => !p.IsPrimaryKey))
+            {
+                if (paramSetPart.Length > 0)
+                {
+                    paramSetPart.Append(", ");
+                }
+                paramSetPart.AppendFormat("[{0}] = @{0}", column.Name);
+            }
+
+            var paramWherePart = new StringBuilder();
+
+            // Add primary key condition
+            foreach (ColumnInfo col in _tableInfo.PrimaryKey)
+            {
+                if (paramWherePart.Length > 0)
+                {
+                    paramWherePart.Append(" AND ");
+                }
+                paramWherePart.AppendFormat("([{0}] = @{0})", col.Name);
+            }
+
+            // Add additional condition
+            if (paramWherePart.Length > 0)
+            {
+                paramWherePart.Append(" AND ");
+            }
+
+            // Replace parameter placeholders in the SQL with the correct parameter names
+            string conditionSql = additionalCondition.Sql;
+            int paramCount = additionalCondition.Parameters.Count();
+            for (int i = paramCount; i >= 1; i--)
+            {
+                conditionSql = conditionSql.Replace($"@{i}", $"@__{i}");
+            }
+            paramWherePart.Append($"({conditionSql})");
 
             return string.Format(UPDATE_QUERY_BASE, _tableInfo.Name, paramSetPart.ToString(), paramWherePart.ToString());
         }
