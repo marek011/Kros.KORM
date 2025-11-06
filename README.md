@@ -747,6 +747,8 @@ await database.DeleteAsync<Person>("Id = @1", 2);
 await database.EditAsync(person);
 await database.EditAsync(person, "Id", "Age");
 await database.EditAsync(people);
+await database.EditAsync(document, d => d.Version == 1);
+await database.EditAsync(person, "Status = @1 AND Age > @2", "Active", 18);
 await database.BulkEditAsync(people);
 await database.UpsertAsync(person);
 await database.UpsertAsync(people);
